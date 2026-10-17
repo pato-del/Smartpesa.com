@@ -1,1 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aviator Simulator</title>
+  <style>
+    :root {
+      --bg-dark: #0e121b;
+      --bg-card: #181f2c;
+      --bg-panel: #212b3d;
+      --accent-red: #e51b24;
+      --accent-green: #28a745;
+      --accent-gold: #ffc107;
+      --text-main: #ffffff;
+      --text-muted: #8e9bb0;
+      --border-color: #2d3a4f;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--bg-dark); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Top Bar */
+    header {
+      background-color: var(--bg-card);
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .brand { font-size: 22px; font-weight: bold; color: var(--accent-red); display: flex; align-items: center; gap: 8px; }
+    .wallet-section { display: flex; align-items: center; gap: 15px; }
+    .balance-box { background: var(--bg-dark); padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border-color); font-weight: bold; }
+    .btn-deposit { background: var(--accent-green); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    .btn-deposit:hover { opacity: 0.9; }
+
+    /* Main Container */
+    .app-container { display: flex; flex: 1; overflow: hidden; }
+
+    /* Left Panel: Social & Bets */
+    .sidebar-left { width: 300px; background: var(--bg-card); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
+    .tab-header { display: flex; border-bottom: 1px solid var(--border-color); }
+    .tab-btn { flex: 1; padding: 12px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-weight: bold; font-size: 13px; }
+    .tab-btn.active { color: var(--accent-red); border-bottom: 2px solid var(--accent-red); background: var(--bg-panel); }
+    .tab-content { flex: 1; overflow-y: auto; padding: 10px; }
+    
+    .list-item { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid var(--border-color); font-size: 12px; align-items: center; }
+    .list-item .user { font-weight: bold; }
+    .list-item .win { color: var(--accent-green); }
+    .list-item .loss { color: var(--accent-red); }
+
+    /* Middle Area: Display & Controls */
+    .main-game { flex: 1; display: flex; flex-direction: column; background: var(--bg-dark); padding: 10px; gap: 10px; }
+    
+    /* History Ribbon */
+    .history-ribbon { display: flex; gap: 6px; overflow-x: auto; padding: 6px 0; min-height: 35px; align-items: center; }
+    .history-badge { background: var(--bg-panel); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; white-space: nowrap; }
+    .badge-high { color: #9c27b0; }
+    .badge-mid { color: #2196f3; }
+    .badge-low { color: #3498db; }
+
+    /* Canvas Stage */
+    .canvas-container { flex: 1; background: #000; border-radius: 10px; position: relative; border: 1px solid var(--border-color); overflow: hidden; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .multiplier-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
+    .multiplier-text { font-size: 64px; font-weight: 900; text-shadow: 0 0 10px rgba(0,0,0,0.8); }
+    .status-text { font-size: 18px; color: var(--text-muted); margin-top: 5px; }
+
+    /* Betting Controls */
+    .bet-panels { display: flex; gap: 10px; height: 160px; }
+    .bet-card { flex: 1; background: var(--bg-card); border-radius: 8px; padding: 10px; border: 1px solid var(--border-color); display: flex; gap: 10px; }
+    .bet-inputs { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .input-group { display: flex; flex-direction: column; gap: 2px; }
+    .input-group label { font-size: 11px; color: var(--text-muted); }
+    .input-group input { background: var(--bg-dark); border: 1px solid var(--border-color); color: white; padding: 6px; border-radius: 4px; font-weight: bold; }
+    .btn-action { width: 120px; background: var(--accent-red); color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    .btn-action.cashing-out { background: var(--accent-gold); color: black; }
+    .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Right Panel: AI Chat */
+    .sidebar-right { width: 320px; background: var(--bg-card); border-left: 1px solid var(--border-color); display: flex; flex-direction: column; }
+    .chat-header { padding: 12px; background: var(--bg-panel); font-weight: bold; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 8px; }
+    .chat-messages { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .chat-msg { background: var(--bg-panel); padding: 8px 12px; border-radius: 8px; font-size: 13px; max-width: 85%; }
+    .chat-msg.user-msg { background: #1e3a5f; align-self: flex-end; }
+    .chat-msg.ai-msg { background: #2d1f3d; border-left: 3px solid #9c27b0; align-self: flex-start; }
+    .chat-msg .author { font-weight: bold; font-size: 11px; margin-bottom: 3px; color: var(--text-muted); }
+    .chat-input-area { padding: 10px; border-top: 1px solid var(--border-color); display: flex; gap: 5px; }
+    .chat-input-area input { flex: 1; background: var(--bg-dark); border: 1px solid var(--border-color); color: white; padding: 8px; border-radius: 4px; font-size: 12px; }
+    .chat-input-area button { background: var(--accent-red); color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+
+    /* Modal */
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 100; }
+    .modal { background: var(--bg-card); border: 1px solid var(--border-color); width: 350px; border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+    .modal-header { font-size: 18px; font-weight: bold; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+    .modal-body { display: flex; flex-direction: column; gap: 10px; }
+    .modal-body input { background: var(--bg-dark); border: 1px solid var(--border-color); color: white; padding: 10px; border-radius: 4px; font-weight: bold; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
+    .btn-cancel { background: var(--bg-panel); border: none; color: white; padding: 8px 14px; border-radius: 4px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header>
+    <div class="brand">✈️ AVIATOR SIM</div>
+    <div class="wallet-section">
+      <div class="balance-box">Balance: Ksh. <span id="user-balance">500.00</span></div>
+      <button class="btn-deposit" onclick="openDepositModal()">Deposit</button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="app-container">
+    
+    <!-- Left Sidebar: Bets & History -->
+    <div class="sidebar-left">
+      <div class="tab-header">
+        <button class="tab-btn active" onclick="switchTab('live-bets', this)">All Bets</button>
+        <button class="tab-btn" onclick="switchTab('my-bets', this)">My History</button>
+      </div>
+      <div class="tab-content" id="tab-live-bets">
+        <div id="social-bets-list"></div>
+      </div>
+      <div class="tab-content" id="tab-my-bets" style="display: none;">
+        <div id="my-history-list"></div>
+      </div>
+    </div>
+
+    <!-- Center Stage -->
+    <div class="main-game">
+      <!-- Crash History Ribbon -->
+      <div class="history-ribbon" id="history-ribbon"></div>
+
+      <!-- Canvas Stage -->
+      <div class="canvas-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="multiplier-overlay">
+          <div class="multiplier-text" id="multiplier-display">1.00x</div>
+          <div class="status-text" id="status-display">WAITING FOR NEXT ROUND</div>
+        </div>
+      </div>
+
+      <!-- Double Betting Panels -->
+      <div class="bet-panels">
+        <!-- Panel 1 -->
+        <div class="bet-card">
+          <div class="bet-inputs">
+            <div class="input-group">
+              <label>Bet Amount (Ksh)</label>
+              <input type="number" id="bet1-amount" value="50" min="10">
+            </div>
+            <div class="input-group">
+              <label>Auto Cashout (x)</label>
+              <input type="number" id="bet1-auto" value="2.00" step="0.10" min="1.01">
+            </div>
+          </div>
+          <button class="btn-action" id="bet1-btn" onclick="handleBetClick(1)">BET</button>
+        </div>
+
+        <!-- Panel 2 -->
+        <div class="bet-card">
+          <div class="bet-inputs">
+            <div class="input-group">
+              <label>Bet Amount (Ksh)</label>
+              <input type="number" id="bet2-amount" value="100" min="10">
+            </div>
+            <div class="input-group">
+              <label>Auto Cashout (x)</label>
+              <input type="number" id="bet2-auto" value="1.50" step="0.10" min="1.01">
+            </div>
+          </div>
+          <button class="btn-action" id="bet2-btn" onclick="handleBetClick(2)">BET</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Sidebar: AI Chat -->
+    <div class="sidebar-right">
+      <div class="chat-header">🤖 Aviator AI Coach & Chat</div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-msg ai-msg">
+          <div class="author">AI Coach</div>
+          Welcome! Ask me for game predictions, risk strategies, or advice on auto cashouts!
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <input type="text" id="chat-input" placeholder="Ask AI Coach..." onkeypress="if(event.key==='Enter') sendChatMessage()">
+        <button onclick="sendChatMessage()">Send</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Deposit Modal -->
+  <div class="modal-overlay" id="deposit-modal">
+    <div class="modal">
+      <div class="modal-header">Deposit Funds (M-Pesa)</div>
+      <div class="modal-body">
+        <p style="font-size:12px; color: var(--text-muted);">Enter amount between Ksh. 100 and Ksh. 200.</p>
+        <input type="number" id="deposit-amount" placeholder="Amount (100 - 200)" min="100" max="200">
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="closeDepositModal()">Cancel</button>
+        <button class="btn-deposit" onclick="processDeposit()">Deposit</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Application State ---
+    let balance = 500.00;
+    let gameState = 'WAITING'; // WAITING, FLYING, CRASHED
+    let currentMultiplier = 1.00;
+    let crashPoint = 1.00;
+    let gameLoopId = null;
+    let roundHistory = [1.24, 2.10, 1.05, 5.40, 1.80, 1.12, 14.20, 2.05];
+
+    // Player Bet Tracking
+    const bets = {
+      1: { amount: 0, status: 'NONE', cashedOutAt: 0 }, // NONE, PLACED, CASHED
+      2: { amount: 0, status: 'NONE', cashedOutAt: 0 }
+    };
+
+    // My Betting History
+    const myBetHistory = [];
+
+    // Simulated Social Bots
+    const botNames = ['Mwangi_254', 'Achieng_K', 'Otieno_Bets', 'Kipchoge_99', 'Wanjiku_M', 'Juma_Trader', 'Nairobi_Flyer'];
+
+    // --- DOM Elements ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const multiplierDisplay = document.getElementById('multiplier-display');
+    const statusDisplay = document.getElementById('status-display');
+    const balanceDisplay = document.getElementById('user-balance');
+
+    // Canvas Resize Handling
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // --- Game Logic & Lifecycle ---
+
+    function startRoundCountdown() {
+      gameState = 'WAITING';
+      let countdown = 5;
+      multiplierDisplay.style.color = '#ffffff';
+      
+      const timer = setInterval(() => {
+        statusDisplay.innerText = `NEXT ROUND IN ${countdown.toFixed(1)}s`;
+        countdown -= 0.1;
+        if (countdown <= 0) {
+          clearInterval(timer);
+          launchPlane();
+        }
+      }, 100);
+    }
+
+    function generateCrashPoint() {
+      // Standard Provably Fair Crash Algorithm with ~3% House Edge
+      const e = 100;
+      const h = Math.random() * 100;
+      if (h < 3) return 1.00; // Instant crash
+      return parseFloat((e / (100 - h)).toFixed(2));
+    }
+
+    function launchPlane() {
+      gameState = 'FLYING';
+      crashPoint = generateCrashPoint();
+      currentMultiplier = 1.00;
+      statusDisplay.innerText = '';
+      
+      // Update UI buttons for active bets
+      [1, 2].forEach(id => {
+        if (bets[id].status === 'PLACED') {
+          const btn = document.getElementById(`bet${id}-btn`);
+          btn.innerText = 'CASH OUT';
+          btn.classList.add('cashing-out');
+        }
+      });
+
+      generateSocialBets();
+
+      let startTime = Date.now();
+      
+      gameLoopId = setInterval(() => {
+        let elapsedTime = (Date.now() - startTime) / 1000;
+        // Exponential flight curve algorithm
+        currentMultiplier = parseFloat((Math.pow(Math.E, 0.06 * elapsedTime)).toFixed(2));
+
+        multiplierDisplay.innerText = `${currentMultiplier.toFixed(2)}x`;
+        renderCanvas(elapsedTime);
+
+        // Auto Cashout Checks
+        [1, 2].forEach(id => {
+          if (bets[id].status === 'PLACED') {
+            const autoVal = parseFloat(document.getElementById(`bet${id}-auto`).value);
+            if (autoVal && currentMultiplier >= autoVal) {
+              cashOut(id);
+            }
+          }
+        });
+
+        // Trigger Crash
+        if (currentMultiplier >= crashPoint) {
+          handleCrash();
+        }
+      }, 50);
+    }
+
+    function handleCrash() {
+      clearInterval(gameLoopId);
+      gameState = 'CRASHED';
+      
+      multiplierDisplay.innerText = `${crashPoint.toFixed(2)}x`;
+      multiplierDisplay.style.color = 'var(--accent-red)';
+      statusDisplay.innerText = 'FLEW AWAY!';
+
+      // Process losses for un-cashed bets
+      [1, 2].forEach(id => {
+        if (bets[id].status === 'PLACED') {
+          myBetHistory.unshift({
+            time: new Date().toLocaleTimeString(),
+            stake: bets[id].amount,
+            multiplier: 'Crashed',
+            profit: -bets[id].amount
+          });
+          bets[id].status = 'NONE';
+          resetBetButton(id);
+        }
+      });
+
+      // Update History Ribbon
+      roundHistory.unshift(crashPoint);
+      if (roundHistory.length > 10) roundHistory.pop();
+      renderHistoryRibbon();
+      renderMyHistory();
+
+      setTimeout(startRoundCountdown, 3000);
+    }
+
+    function renderCanvas(time) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Background Grid
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+      }
+
+      if (gameState === 'FLYING') {
+        // Curve parameters
+        const startX = 40;
+        const startY = canvas.height - 40;
+        const progress = Math.min(time / 15, 1);
+        const endX = startX + (canvas.width - 80) * progress;
+        const endY = startY - (canvas.height - 100) * Math.pow(progress, 0.7);
+
+        // Flight Curve Path
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.quadraticCurveTo((startX + endX) / 2, startY, endX, endY);
+        ctx.strokeStyle = 'var(--accent-red)';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        // Area under curve
+        ctx.lineTo(endX, startY);
+        ctx.lineTo(startX, startY);
+        ctx.fillStyle = 'rgba(229, 27, 36, 0.15)';
+        ctx.fill();
+
+        // Draw Plane
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(endX, endY, 8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // --- Betting Operations ---
+
+    function handleBetClick(id) {
+      const btn = document.getElementById(`bet${id}-btn`);
+      const amountInput = document.getElementById(`bet${id}-amount`);
+      const stake = parseFloat(amountInput.value);
+
+      if (bets[id].status === 'NONE') {
+        if (gameState !== 'WAITING') {
+          alert("Wait for the next round to place your bet!");
+          return;
+        }
+        if (isNaN(stake) || stake <= 0) {
+          alert("Please enter a valid bet amount.");
+          return;
+        }
+        if (balance < stake) {
+          alert("Insufficient balance! Please deposit funds.");
+          return;
+        }
+
+        // Place Bet
+        balance -= stake;
+        updateBalanceDisplay();
+        bets[id] = { amount: stake, status: 'PLACED', cashedOutAt: 0 };
+        btn.innerText = 'WAITING...';
+        btn.disabled = true;
+      } else if (bets[id].status === 'PLACED' && gameState === 'FLYING') {
+        cashOut(id);
+      }
+    }
+
+    function cashOut(id) {
+      if (bets[id].status !== 'PLACED') return;
+
+      const winAmount = bets[id].amount * currentMultiplier;
+      balance += winAmount;
+      updateBalanceDisplay();
+
+      bets[id].cashedOutAt = currentMultiplier;
+      bets[id].status = 'CASHED';
+
+      myBetHistory.unshift({
+        time: new Date().toLocaleTimeString(),
+        stake: bets[id].amount,
+        multiplier: `${currentMultiplier.toFixed(2)}x`,
+        profit: winAmount - bets[id].amount
+      });
+
+      resetBetButton(id);
+      renderMyHistory();
+    }
+
+    function resetBetButton(id) {
+      const btn = document.getElementById(`bet${id}-btn`);
+      btn.innerText = 'BET';
+      btn.classList.remove('cashing-out');
+      btn.disabled = false;
+    }
+
+    function updateBalanceDisplay() {
+      balanceDisplay.innerText = balance.toFixed(2);
+    }
+
+    // --- Deposit Logic ---
+
+    function openDepositModal() {
+      document.getElementById('deposit-modal').style.display = 'flex';
+    }
+
+    function closeDepositModal() {
+      document.getElementById('deposit-modal').style.display = 'none';
+    }
+
+    function processDeposit() {
+      const input = document.getElementById('deposit-amount');
+      const val = parseFloat(input.value);
+
+      if (isNaN(val) || val < 100 || val > 200) {
+        alert("Invalid deposit! Minimum deposit is Ksh. 100 and Maximum deposit is Ksh. 200.");
+        return;
+      }
+
+      balance += val;
+      updateBalanceDisplay();
+      alert(`Successfully deposited Ksh. ${val.toFixed(2)} via M-Pesa!`);
+      closeDepositModal();
+      input.value = '';
+    }
+
+    // --- Social Bets & History Rendering ---
+
+    function generateSocialBets() {
+      const container = document.getElementById('social-bets-list');
+      container.innerHTML = '';
+      
+      botNames.forEach(bot => {
+        const betVal = Math.floor(Math.random() * 500) + 50;
+        const willWin = Math.random() > 0.4;
+        const exitMult = willWin ? (Math.random() * (crashPoint - 1.01) + 1.01).toFixed(2) : null;
+
+        const item = document.createElement('div');
+        item.className = 'list-item';
+        item.innerHTML = `
+          <span class="user">${bot}</span>
+          <span>Ksh. ${betVal}</span>
+          <span class="${willWin ? 'win' : 'loss'}">
+            ${willWin ? `${exitMult}x (+Ksh.${(betVal * exitMult).toFixed(0)})` : 'In Play'}
+          </span>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function renderMyHistory() {
+      const container = document.getElementById('my-history-list');
+      container.innerHTML = '';
+
+      if (myBetHistory.length === 0) {
+        container.innerHTML = '<div style="font-size:12px; color: var(--text-muted); padding: 10px;">No bets placed yet.</div>';
+        return;
+      }
+
+      myBetHistory.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        const isWin = item.profit > 0;
+        div.innerHTML = `
+          <span>${item.time}</span>
+          <span>Ksh. ${item.stake}</span>
+          <span class="${isWin ? 'win' : 'loss'}">
+            ${item.multiplier} (${isWin ? '+' : ''}Ksh. ${item.profit.toFixed(2)})
+          </span>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function renderHistoryRibbon() {
+      const ribbon = document.getElementById('history-ribbon');
+      ribbon.innerHTML = '';
+      roundHistory.forEach(val => {
+        const badge = document.createElement('div');
+        badge.className = `history-badge ${val >= 10 ? 'badge-high' : val >= 2 ? 'badge-mid' : 'badge-low'}`;
+        badge.innerText = `${val.toFixed(2)}x`;
+        ribbon.appendChild(badge);
+      });
+    }
+
+    function switchTab(tabName, btnEl) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btnEl.classList.add('active');
+      
+      document.getElementById('tab-live-bets').style.display = tabName === 'live-bets' ? 'block' : 'none';
+      document.getElementById('tab-my-bets').style.display = tabName === 'my-bets' ? 'block' : 'none';
+    }
+
+    // --- AI Chat Assistant ---
+
+    function sendChatMessage() {
+      const input = document.getElementById('chat-input');
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      appendChatMessage('You', msg, 'user-msg');
+      input.value = '';
+
+      // AI Response Generation
+      setTimeout(() => {
+        const aiResponse = getAIResponse(msg);
+        appendChatMessage('AI Coach', aiResponse, 'ai-msg');
+      }, 600);
+    }
+
+    function appendChatMessage(author, text, styleClass) {
+      const container = document.getElementById('chat-messages');
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `chat-msg ${styleClass}`;
+      msgDiv.innerHTML = `<div class="author">${author}</div>${text}`;
+      container.appendChild(msgDiv);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function getAIResponse(userText) {
+      const text = userText.toLowerCase();
+      if (text.includes('predict') || text.includes('next') || text.includes('when')) {
+        return `Remember: Aviator uses a Provably Fair RNG algorithm! Each round is mathematically independent. Historical patterns don't guarantee the next crash point.`;
+      } else if (text.includes('strategy') || text.includes('win') || text.includes('trick')) {
+        return `A popular approach is the Double Bet Strategy: Set Panel 1 to Auto-Cashout at 1.30x (covers initial stake) and leave Panel 2 to chase higher multipliers.`;
+      } else if (text.includes('deposit') || text.includes('mpesa') || text.includes('money')) {
+        return `To deposit, click the green 'Deposit' button at the top right. Enter an amount between Ksh. 100 and Ksh. 200.`;
+      } else if (text.includes('hi') || text.includes('hello')) {
+        return `Hello! How can I assist your gameplay today? Ask me about betting strategies or risk control!`;
+      } else {
+        return `I'm monitoring the active flight parameters! Remember to keep your stakes manageable and use Auto Cashout to lock in profits early.`;
+      }
+    }
+
+    // Initialize Game
+    renderHistoryRibbon();
+    startRoundCountdown();
+  </script>
+</body>
+</html>
 
